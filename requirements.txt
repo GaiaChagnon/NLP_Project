@@ -1,0 +1,8 @@
+# Core
+pandas>=2.0
+
+# GUI (suggested)
+gradio>=4.0
+
+# NLP / recommender method: TBD
+# Possible choices: scikit-learn (TF-IDF, cosine), sentence-transformers, spaCy, etc.
