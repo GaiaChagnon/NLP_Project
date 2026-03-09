@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from recommender import load_config
 
 load_dotenv()
+print("Starting enrichment...")
 
 
 def _classify_batch(client: httpx.Client, model: str, books: list[dict]) -> list[dict] | None:
