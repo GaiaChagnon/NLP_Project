@@ -1,5 +1,7 @@
 """FastAPI backend — serves book recommendations over cosine similarity + rating boost."""
 
+import os
+
 import numpy as np
 import pandas as pd
 import uvicorn
@@ -21,8 +23,17 @@ app.add_middleware(
 )
 
 # ── Load pre-computed data ──────────────────────────────────
+print("[api] Loading enriched book catalog ...")
 df = pd.read_csv(cfg["data"]["enriched"]).fillna("")
-npz = np.load(cfg["data"]["embeddings"], allow_pickle=True)
+
+emb_path = cfg["data"]["embeddings"]
+if not os.path.exists(emb_path):
+    raise FileNotFoundError(
+        f"{emb_path} not found — run `python -m recommender.embed` first"
+    )
+
+print(f"[api] Loading embeddings from {emb_path} ...")
+npz = np.load(emb_path, allow_pickle=True)
 embeddings = npz["embeddings"].astype(np.float32)
 isbn_arr = npz["isbn13"]
 
@@ -30,8 +41,10 @@ isbn_to_idx = {int(v): i for i, v in enumerate(isbn_arr)}
 book_lookup = {int(row["isbn13"]): row.to_dict() for _, row in df.iterrows()}
 
 # ── Embedding model (shared across requests) ───────────────
+print(f"[api] Loading sentence-transformer model ({cfg['embedding']['model']}) ...")
 model = SentenceTransformer(cfg["embedding"]["model"])
 query_prefix = cfg["embedding"].get("query_prefix", "")
+print("[api] Model loaded — server ready.")
 
 # ── Scoring parameters ─────────────────────────────────────
 rating_w = cfg["scoring"]["rating_weight"]
@@ -46,6 +59,22 @@ class RecommendRequest(BaseModel):
 
 
 # ── Endpoints ───────────────────────────────────────────────
+@app.get("/")
+def root():
+    """Status page when visiting the API root in a browser."""
+    return {
+        "service": "BookFlix Recommender API",
+        "status": "ok",
+        "total_books": len(book_lookup),
+        "endpoints": ["/recommend (POST)", "/books (GET)", "/books/{isbn} (GET)", "/health (GET)", "/docs (GET)"],
+    }
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
 @app.post("/recommend")
 def recommend(req: RecommendRequest):
     # Resolve candidate set
@@ -86,7 +115,11 @@ def recommend(req: RecommendRequest):
             "thumbnail": b.get("thumbnail", ""),
             "description": str(b.get("description", ""))[:300],
             "average_rating": float(b.get("average_rating", 0)),
+            "ratings_count": int(b.get("ratings_count", 0)),
+            "published_year": int(b.get("published_year", 0)),
+            "num_pages": int(b.get("num_pages", 0)),
             "genres": b.get("genres", ""),
+            "keywords": b.get("keywords", ""),
             "categories": b.get("categories", ""),
             "score": round(float(scores[t]), 4),
             "similarity": round(float(sims[t]), 4),
@@ -116,10 +149,19 @@ def list_books(
     if year_to < 9999:
         out = out[out["published_year"] <= year_to]
 
-    cols = ["isbn13", "title", "authors", "categories", "genres",
-            "thumbnail", "average_rating", "published_year", "num_pages"]
+    cols = ["isbn13", "title", "authors", "categories", "genres", "keywords",
+            "thumbnail", "average_rating", "ratings_count", "published_year",
+            "num_pages"]
     cols = [c for c in cols if c in out.columns]
     return {"books": out[cols].to_dict(orient="records"), "count": len(out)}
+
+
+@app.get("/books/{isbn}")
+def get_book(isbn: int):
+    """Return full metadata for a single book by ISBN-13."""
+    if isbn not in book_lookup:
+        raise HTTPException(404, "Book not found")
+    return book_lookup[isbn]
 
 
 if __name__ == "__main__":

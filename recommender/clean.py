@@ -1,4 +1,8 @@
-"""Remove books that lack a description, author, thumbnail, or rating."""
+"""Remove books that lack a description, author, thumbnail, or rating.
+
+Preserves enrichment columns (genres, keywords — 3+3 per book) if they
+exist in the source file, so re-cleaning enriched data is safe.
+"""
 
 import pandas as pd
 from recommender import load_config
@@ -14,6 +18,11 @@ def clean():
     for col in ["description", "authors", "thumbnail"]:
         df = df[df[col].astype(str).str.strip() != ""]
     df = df[df["average_rating"] > 0]
+
+    # Normalise enrichment columns when present (genres: 3, keywords: 3)
+    for col in ("genres", "keywords"):
+        if col in df.columns:
+            df[col] = df[col].fillna("").astype(str).str.strip()
 
     df = df.reset_index(drop=True)
     df.to_csv(cfg["data"]["clean"], index=False)

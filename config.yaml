@@ -24,7 +24,7 @@ embedding:
 # final_score = (1 - rating_weight) * cosine_sim
 #             +      rating_weight  * normalised_rating
 scoring:
-  rating_weight: 0.1   # 0.0 = pure similarity, 1.0 = pure rating
+  rating_weight: 0.001   # 0.0 = pure similarity, 1.0 = pure rating
   min_rating: 0.0
   max_rating: 5.0
 
@@ -32,3 +32,7 @@ scoring:
 api:
   host: 0.0.0.0
   port: 8000
+
+# ── GUI (Gradio) ──────────────────────────────────────────
+gui:
+  port: 7860
