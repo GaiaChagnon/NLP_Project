@@ -700,7 +700,7 @@ def _render_home(user_list: list[int]) -> str:
         seen.add(hero_isbn)
         parts.append(_render_hero(rec_books[0], label="Recommended for You"))
     else:
-        hero_df = df[df["ratings_count"] >= 100].nlargest(1, "average_rating")
+        hero_df = df[df["ratings_count"] >= 1_000_000].nlargest(1, "average_rating")
         if not hero_df.empty:
             hero_isbn = int(hero_df.iloc[0]["isbn13"])
             seen.add(hero_isbn)
@@ -725,11 +725,9 @@ def _render_home(user_list: list[int]) -> str:
         if rec_cards_parts:
             parts.append(_row_html("Recommended for You", "".join(rec_cards_parts)))
 
-    # Top Rated = best combination of high rating AND meaningful review count.
-    # Sort by average_rating among books with 500+ reviews so obscure 5-star
-    # books with 3 reviews don't dominate.
+    # Top Rated = highest rating among massively popular books (1M+ reviews).
     tr_candidates = (
-        df[df["ratings_count"] >= 500]
+        df[df["ratings_count"] >= 1_000_000]
         .nlargest(ITEMS_PER_ROW * 3, "average_rating")["isbn13"]
         .astype(int)
         .tolist()
